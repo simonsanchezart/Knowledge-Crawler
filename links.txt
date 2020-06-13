@@ -1,0 +1,57 @@
+{
+    "continue": {
+        "plcontinue": "62542149|0|Iggy_Pop",
+        "continue": "||"
+    },
+    "query": {
+        "pages": {
+            "62542149": {
+                "pageid": 62542149,
+                "ns": 0,
+                "title": "The Blinders (band)",
+                "links": [
+                    {
+                        "ns": 0,
+                        "title": "2019 United Kingdom general election"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Alternative rock"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Blossoms (band)"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Bob Dylan"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Cabbage (band)"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Doncaster"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Editors (band)"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "George Orwell"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Glastonbury Festival"
+                    },
+                    {
+                        "ns": 0,
+                        "title": "Goldblade"
+                    }
+                ]
+            }
+        }
+    }
+}

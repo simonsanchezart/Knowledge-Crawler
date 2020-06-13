@@ -1,0 +1,8 @@
+SOURCES:
+
+Wikipedia - DONE
+    get links inside each article - DONE
+Youtube
+Google
+PDF's, epubs, etc...
+Archive.org
