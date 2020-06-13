@@ -3,6 +3,9 @@ SOURCES:
 Wikipedia - DONE
     get links inside each article - DONE
 Youtube
+    save and load api key
 Google
 PDF's, epubs, etc...
 Archive.org
+Create index for html file
+Stylize HTML
