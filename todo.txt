@@ -2,8 +2,9 @@ SOURCES:
 
 Wikipedia - DONE
     get links inside each article - DONE
-Youtube
-    save and load api key
+    Download articles as pdf - DONE
+Youtube - DONE
+    save and load api key - DONE
 Google
 PDF's, epubs, etc...
 Archive.org

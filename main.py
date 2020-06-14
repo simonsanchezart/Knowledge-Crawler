@@ -1,6 +1,9 @@
 import requests
 import json
 import os
+import pdfkit
+from pytube import YouTube
+from random import randrange
 
 def check_confirmation(input_text):
     available_anwers = ("yes", "y", "yey")
@@ -17,7 +20,11 @@ def is_strict():
 
 search_term = input("What do you wanna search for? ")
 
-wiki_articles, wiki_in_links = [], []
+if not os.path.exists(f"{search_term}"):
+    os.mkdir(f"{search_term}")
+
+
+raw_articles, wiki_articles, wiki_in_links = [], [], []
 def search_wikipedia():
     global search_term
 
@@ -34,6 +41,7 @@ def search_wikipedia():
         for article in range(len(contents[1])):
             name = contents[1][article]
             link = contents[3][article]
+            name_and_link = {"name": name, "link": link}
             full_article = f"<b><a href='{link}' target='_blank'>{name}</a></b>"
 
             url_links = f"https://en.wikipedia.org/w/api.php?action=query&prop=links&titles={name}&format=json"
@@ -48,15 +56,42 @@ def search_wikipedia():
                 full_link = f"<b><a href='{article_link}' target='_blank''>{link['title']} </a></b>"
                 internal_link_list.append(full_link)
 
+            raw_articles.append(name_and_link)
             wiki_in_links.append(internal_link_list)
             wiki_articles.append(full_article)
 
 
 wiki_confirm = check_confirmation(input("Do you want to search the Wikipedia? (y/n) "))
+def download_wikipedia():
+    config = pdfkit.configuration(wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe")
+    options = {'quiet': ''}
+
+    try:
+        articles_quantity = int(input(f"How many articles do you want to download? (max: {len(raw_articles)}) "))
+    except ValueError:
+        pass
+    else:
+        if 0 > articles_quantity > len(raw_articles):
+            print(f"Input must be integer between 1 and {len(raw_articles)}")
+            download_wikipedia()
+
+    articles_to_download = raw_articles[:articles_quantity]
+    for article in articles_to_download:
+        print(f"Downloading {article['name']} as .pdf")
+        pdfkit.from_url(article["link"], f"{search_term}/{article['name']}.pdf", configuration=config, options=options)
+
+
 if wiki_confirm:
     search_wikipedia()
+    confirm_wiki_download = check_confirmation(input("Do you want to convert Wikipedia articles to pdf? (y/n) "))
+    if confirm_wiki_download:
 
-youtube_videos, youtube_thumbnails = [], []
+        print("\nWARNING: Downloading articles from Wikipedia can be slow ,"
+              "if possible, keep the number of articles to download to a minimum.")
+        download_wikipedia()
+
+
+videos_links, youtube_videos, youtube_thumbnails = [], [], []
 def youtube_search(api_key):
     global search_term
 
@@ -77,10 +112,13 @@ def youtube_search(api_key):
         for video in videos:
             name = video["snippet"]["title"]
             id = video["id"]["videoId"]
-            video_link = f"<b><a href='https://www.youtube.com/watch?v={id}' target='_blank'>{name}</a></b>"
+            video_link = f"https://www.youtube.com/watch?v={id}"
+            formatted_video_link = f"<b><a href='{video_link}' target='_blank'>{name}</a></b>"
             thumbnail_image = f"""<img src='{video["snippet"]["thumbnails"]["high"]["url"]}'></img>'"""
+
+            videos_links.append(video_link)
             youtube_thumbnails.append(thumbnail_image)
-            youtube_videos.append(video_link)
+            youtube_videos.append(formatted_video_link)
 
 
 youtube_confirm = check_confirmation(input("Do you want to search for Youtube? (y/n) "))
@@ -107,10 +145,10 @@ if youtube_confirm:
                   " Youtube and Google services won't be used.")
 
 if youtube_confirm:
-    write_youtube_thumbnails = check_confirmation(input("Do you want to include Youtube thumbnail? (y/n) "))
+    write_youtube_thumbnails = check_confirmation(input("Do you want to include Youtube thumbnails? (y/n) "))
 
 def write_file():
-    file_name = f"information_about_{search_term}.html"
+    file_name = f"{search_term}/Information about {search_term}.html"
     with open(file_name, "w", encoding='utf-8-sig', ) as f:
         if wiki_confirm:
             f.write(f"<h2>Wikipedia</h2>")
@@ -131,5 +169,82 @@ def write_file():
 
 write_file()
 
-# print(len(wiki_articles))
-# print(wiki_in_links)
+if youtube_confirm:
+    confirm_youtube_download = check_confirmation(input("Do you want to download the youtube videos? (y/n) "))
+
+video_quantity = 0
+def get_video_quantity():
+    global video_quantity
+    try:
+        print("\nWARNING: Downloading and retrieving data from Youtube can be really slow, "
+              "if possible, keep the number of videos to download to a minimum.")
+        video_quantity = int(input("\nHow many videos do you want to download? (max: 50) "))
+    except ValueError:
+        print(f"Input must be a number between 1 and 50 (inclusive)")
+        get_video_quantity()
+    else:
+        video_quantity = max(1, min(video_quantity, 50))
+
+video_quality = 0
+def get_video_quality():
+    global video_quality
+    video_quality = int(input("Choose a quality to download the video (0-2):\n"
+                              "0- Highest\n"
+                              "1- Mid\n"
+                              "2- Lowest\n\n"))
+    if 0 > video_quality > 2:
+        print("Video quality should be a number between 0 and 2 (inclusive)")
+        get_video_quality()
+
+
+total_size = 0
+def download_youtube():
+    global total_size
+    get_video_quantity()
+    get_video_quality()
+    videos_to_download = videos_links[:video_quantity]
+
+    print("Getting the total size...")
+    for i, video in enumerate(videos_to_download):
+        try:
+            print(f"Getting size from video {i+1} of {len(videos_to_download)}")
+            yt = YouTube(video)
+            streams_list = yt.streams.filter(progressive=True).order_by("resolution").desc()
+            if video_quality is 0:
+                my_stream = streams_list[0]
+            elif video_quality is 1:
+                index = len(streams_list) // 2
+                my_stream = streams_list[index]
+            else:
+                my_stream = streams_list[-1]
+            file_size = my_stream.filesize / 1000000
+        except:
+            pass
+        else:
+            total_size += file_size
+    proceed = check_confirmation(input(f"\nYou're about to download {round(total_size)} mb in videos,"
+                                       f" do you want to proceed? (y/n) "))
+
+    if not proceed:
+        total_size = 0
+        download_youtube()
+
+    for video in videos_to_download:
+        yt = YouTube(video)
+        print(f"\nGetting data from \"{yt.title}\"")
+        streams_list = yt.streams.filter(progressive=True).order_by("resolution").desc()
+        if video_quality is 0:
+            my_stream = streams_list[0]
+        elif video_quality is 1:
+            index = len(streams_list) // 2
+            my_stream = streams_list[index]
+        else:
+            my_stream = streams_list[-1]
+        file_size = my_stream.filesize / 1000000
+        print(f"\tDownloading {round(file_size)} mb...")
+        identifier = randrange(0, 999999999)
+        my_stream.download(filename=f"{yt.title}_{identifier}")
+
+
+if youtube_confirm and confirm_youtube_download:
+    download_youtube()
