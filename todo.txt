@@ -10,3 +10,4 @@ PDF's, epubs, etc...
 Archive.org
 Create index for html file
 Stylize HTML
+Generate random term and search it

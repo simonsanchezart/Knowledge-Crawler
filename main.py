@@ -243,7 +243,7 @@ def download_youtube():
         file_size = my_stream.filesize / 1000000
         print(f"\tDownloading {round(file_size)} mb...")
         identifier = randrange(0, 999999999)
-        my_stream.download(filename=f"{yt.title}_{identifier}")
+        my_stream.download(output_path=f"{search_term}/", filename=f"{yt.title}_{identifier}")
 
 
 if youtube_confirm and confirm_youtube_download:
