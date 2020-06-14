@@ -5,9 +5,10 @@ Wikipedia - DONE
     Download articles as pdf - DONE
 Youtube - DONE
     save and load api key - DONE
-Google
+Google - DONE
 PDF's, epubs, etc...
 Archive.org
+GET ALL CONFIRMATIONS ONLY AT BEGINNING
 Create index for html file
 Stylize HTML
 Generate random term and search it

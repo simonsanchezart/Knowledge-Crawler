@@ -35,7 +35,7 @@ def search_wikipedia():
     r = requests.get(url)
     print(f"Wikipedia connection: {r.status_code}")
     if r.status_code != 200:
-        print("Not able to use connect to Wikipedia\n")
+        print(f"Not able to use connect to Wikipedia {r.status_code}\n")
     else:
         contents = r.json()
         for article in range(len(contents[1])):
@@ -101,11 +101,12 @@ def youtube_search(api_key):
         url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q={search_term}&relevanceLanguage=en&type=video&key={api_key}"
 
     r = requests.get(url)
-    contents = r.json()
+
     print(f"Youtube connection: {r.status_code}")
     if r.status_code != 200:
-        print("Not able to use connect to Youtube\n")
+        print(f"Not able to use connect to Youtube: {r.status_code}\n")
     else:
+        contents = r.json()
         with open("google_api.txt", "w") as f:
             f.write(api_key)
         videos = contents["items"]
@@ -130,11 +131,10 @@ if youtube_confirm:
             prev_api = f.read()
         use_prev = check_confirmation(input(f"A previous API key ({prev_api}) "
                                             f"has been detected, do you want to use this key? (y/n) "))
-
     if use_prev:
         youtube_search(prev_api)
     else:
-        print(f"\nTo use the Youtube and google services you need an API key.")
+        print(f"\nTo use the Youtube and Google services you need an API key.")
         has_api = check_confirmation(input("Do you have an API key? (y/n) "))
         if has_api:
             api_key = input("Input your API key: ")
@@ -143,6 +143,82 @@ if youtube_confirm:
             print("You can follow these steps to get your API key: "
                   "https://developers.google.com/youtube/v3/getting-started"
                   " Youtube and Google services won't be used.")
+
+incrementer = 0
+google_posts = []
+def google_search(api_key):
+    global search_term, incrementer
+    start = (incrementer * 10) + 1
+    if start > 100:
+        start = 100
+
+    url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx=008211583063684876305:ztaertslmc4&start={start}&q={search_term}"
+
+    r = requests.get(url)
+    if incrementer < 1:
+        print(f"Google connection: {r.status_code}")
+    if r.status_code is not 200 and incrementer < 1:
+        print(f"Not able to use connect to Google {r.status_code}\n")
+    else:
+        contents = r.json()
+        links = contents["items"]
+        for link in links:
+            link_title = link["htmlTitle"]
+            link_display_url = link["displayLink"]
+            link_url = link["link"]
+            link_snippet = link["htmlSnippet"]
+            post = {"link_title": link_title, "link_display_url": link_display_url, "link_url": link_url,
+                    "link_snippet": link_snippet}
+            google_posts.append(post)
+
+    incrementer += 1
+
+
+google_confirm = check_confirmation(input("Do you want to search in Google? (y/n) "))
+
+pages_to_search = 0
+def get_pages_to_search():
+    global pages_to_search
+    try:
+        pages_to_search = int(input("How many pages do you want to search? (1-10) "))
+    except ValueError:
+        print("Value should be a number between 1 and 10 (inclusive)")
+        get_pages_to_search()
+    else:
+        pages_to_search = max(1, min(pages_to_search, 10))
+
+
+if google_confirm:
+    filename = "google_api.txt"
+    use_prev = False
+    if os.path.isfile(filename):
+        with open(filename, "r") as f:
+            prev_api = f.read()
+        use_prev = check_confirmation(input(f"A previous API key ({prev_api}) "
+                                            f"has been detected, to use this API you will need to "
+                                            f"add the Custom Search service to it:\n\n"
+                                            f"1- Go to: https://developers.google.com/custom-search/v1/overview"
+                                            f"#api_key\n"
+                                            f"2- Click 'Get a Key' and select your previously created "
+                                            f"project for Youtube search\n"
+                                            f"3- This will add the service to that project, then you can use your key."
+                                            f"\n\nDo you want to use this key? (y/n) "))
+
+    get_pages_to_search()
+    if use_prev:
+        for i in range(pages_to_search):
+            google_search(prev_api)
+    else:
+        print(f"\nTo use the Youtube and Google services you need an API key.")
+        has_api = check_confirmation(input("Do you have an API key? (y/n) "))
+        if has_api:
+            api_key = input("Input your API key: ")
+            for i in range(pages_to_search):
+                google_search(api_key)
+        else:
+            print("You can follow these steps to get your API key: "
+                  "https://developers.google.com/custom-search/v1/overview "
+                  "Youtube and Google services won't be used.")
 
 if youtube_confirm:
     write_youtube_thumbnails = check_confirmation(input("Do you want to include Youtube thumbnails? (y/n) "))
@@ -165,6 +241,12 @@ def write_file():
                 f.write(f"{youtube_videos[video]}<br >")
                 if write_youtube_thumbnails:
                     f.write(f"{youtube_thumbnails[video]}<br >")
+
+        if google_confirm:
+            f.write(f"<h2>Google</h2>")
+            for post in google_posts:
+                f.write(f"<a href='{post['link_url']}' target='_blank'>{post['link_title']} - {post['link_display_url']}</a><br >")
+                f.write(f"{post['link_snippet']}<br ><br >")
 
 
 write_file()
