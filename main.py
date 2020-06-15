@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import pdfkit
+import urllib
 from pytube import YouTube
 from random import randrange
 
@@ -16,6 +17,7 @@ def check_confirmation(input_text):
 def is_strict():
     strict_confirmation = input("Do you want to perform a strict search? (y/n) ")
     return check_confirmation(strict_confirmation)
+
 
 
 search_term = input("What do you wanna search for? ")
@@ -49,7 +51,11 @@ def search_wikipedia():
             re = requests.get(url_links)
             contents_links = re.json()
             article_id = list(contents_links["query"]["pages"])[0]
-            links = contents_links["query"]["pages"][article_id]["links"]
+            try:
+                links = contents_links["query"]["pages"][article_id]["links"]
+            except:
+                print(f"Wasn't able to get article {name}")
+                continue
             internal_link_list = []
             for link in links:
                 article_link = f"https://en.wikipedia.org/wiki/{link['title']}"
@@ -76,9 +82,10 @@ def download_wikipedia():
             download_wikipedia()
 
     articles_to_download = raw_articles[:articles_quantity]
+    os.mkdir(f"{search_term}/Wikipedia")
     for article in articles_to_download:
         print(f"Downloading {article['name']} as .pdf")
-        pdfkit.from_url(article["link"], f"{search_term}/{article['name']}.pdf", configuration=config, options=options)
+        pdfkit.from_url(article["link"], f"{search_term}/Wikipedia/{article['name']}.pdf", configuration=config, options=options)
 
 
 if wiki_confirm:
@@ -86,7 +93,7 @@ if wiki_confirm:
     confirm_wiki_download = check_confirmation(input("Do you want to convert Wikipedia articles to pdf? (y/n) "))
     if confirm_wiki_download:
 
-        print("\nWARNING: Downloading articles from Wikipedia can be slow ,"
+        print("\nWARNING: Downloading articles from Wikipedia can be slow, "
               "if possible, keep the number of articles to download to a minimum.")
         download_wikipedia()
 
@@ -129,7 +136,7 @@ if youtube_confirm:
     if os.path.isfile(filename):
         with open(filename, "r") as f:
             prev_api = f.read()
-        use_prev = check_confirmation(input(f"A previous API key ({prev_api}) "
+        use_prev = check_confirmation(input(f"\nA previous API key ({prev_api}) "
                                             f"has been detected, do you want to use this key? (y/n) "))
     if use_prev:
         youtube_search(prev_api)
@@ -163,13 +170,17 @@ def google_search(api_key):
         contents = r.json()
         links = contents["items"]
         for link in links:
-            link_title = link["htmlTitle"]
-            link_display_url = link["displayLink"]
-            link_url = link["link"]
-            link_snippet = link["htmlSnippet"]
-            post = {"link_title": link_title, "link_display_url": link_display_url, "link_url": link_url,
-                    "link_snippet": link_snippet}
-            google_posts.append(post)
+            try:
+                link_title = link["htmlTitle"]
+                link_display_url = link["displayLink"]
+                link_url = link["link"]
+                link_snippet = link["htmlSnippet"]
+                post = {"link_title": link_title, "link_display_url": link_display_url, "link_url": link_url,
+                        "link_snippet": link_snippet}
+            except:
+                continue
+            else:
+                google_posts.append(post)
 
     incrementer += 1
 
@@ -194,7 +205,7 @@ if google_confirm:
     if os.path.isfile(filename):
         with open(filename, "r") as f:
             prev_api = f.read()
-        use_prev = check_confirmation(input(f"A previous API key ({prev_api}) "
+        use_prev = check_confirmation(input(f"\nA previous API key ({prev_api}) "
                                             f"has been detected, to use this API you will need to "
                                             f"add the Custom Search service to it:\n\n"
                                             f"1- Go to: https://developers.google.com/custom-search/v1/overview"
@@ -220,8 +231,146 @@ if google_confirm:
                   "https://developers.google.com/custom-search/v1/overview "
                   "Youtube and Google services won't be used.")
 
+incrementer = 0
+google_books = []
+def book_search(api_key):
+    global search_term, incrementer
+    start = (incrementer * 10) + 1
+    if start > 100:
+        start = 100
+
+    url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx=008211583063684876305:ztaertslmc4&start={start}&fileType=pdf&q={search_term}"
+
+    r = requests.get(url)
+    content = r.json()
+    with open("books.json", "w") as f:
+        json.dump(content, f, indent=4)
+    if incrementer < 1:
+        print(f"Google connection: {r.status_code}")
+    if r.status_code is not 200 and incrementer < 1:
+        print(f"Not able to use connect to Google {r.status_code}\n")
+    else:
+        contents = r.json()
+        links = contents["items"]
+        for link in links:
+            try:
+                link_title = link["title"]
+                link_display_url = link["displayLink"]
+                link_url = link["link"]
+                link_snippet = link["htmlSnippet"]
+                book = {"link_title": link_title, "link_display_url": link_display_url, "link_url": link_url,
+                        "link_snippet": link_snippet}
+            except:
+                continue
+            else:
+                google_books.append(book)
+
+    incrementer += 1
+
+
+book_search_confirmation = check_confirmation(input("Do you want to search for .pdf books? (y/n) "))
+
+books_to_search = 0
+def get_books_to_search():
+    global books_to_search
+    try:
+        books_to_search = int(input("How many books do you want to search for? (1-100) "))
+    except ValueError:
+        print("Value should be a number between 1 and 100 (inclusive)")
+        get_books_to_search()
+    else:
+        books_to_search = int(books_to_search / 10)
+        books_to_search = max(1, min(books_to_search, 10))
+
+
+if book_search_confirmation:
+    filename = "google_api.txt"
+    use_prev = False
+    if os.path.isfile(filename):
+        with open(filename, "r") as f:
+            prev_api = f.read()
+        use_prev = check_confirmation(input(f"\nA previous API key ({prev_api}) "
+                                            f"has been detected, to use this API you will need to "
+                                            f"add the Custom Search service to it:\n\n"
+                                            f"1- Go to: https://developers.google.com/custom-search/v1/overview"
+                                            f"#api_key\n"
+                                            f"2- Click 'Get a Key' and select your previously created "
+                                            f"project for Youtube search\n"
+                                            f"3- This will add the service to that project, then you can use your key."
+                                            f"\n\nDo you want to use this key? (y/n) "))
+
+    get_books_to_search()
+    if use_prev:
+        for i in range(books_to_search):
+            book_search(prev_api)
+    else:
+        print(f"\nTo download books you need a Google API key.")
+        has_api = check_confirmation(input("Do you have an API key? (y/n) "))
+        if has_api:
+            api_key = input("Input your API key: ")
+            for i in range(books_to_search):
+                book_search(api_key)
+        else:
+            print("You can follow these steps to get your API key: "
+                  "https://developers.google.com/custom-search/v1/overview "
+                  "Youtube and Google services won't be used.")
+
+download_books_confirmation = check_confirmation(input("Do you want to download the books? (y/n) "))
+
+quantity_of_books_to_download = 0
+def get_quantity_of_books_to_download():
+    global quantity_of_books_to_download
+    try:
+        quantity_of_books_to_download = int(input(f"How many books do you want to download? (1-{len(google_books)}) "))
+    except ValueError:
+        print(f"Input must be a number between 1 and {len(google_books)} (inclusive)")
+        get_quantity_of_books_to_download()
+    else:
+        quantity_of_books_to_download = max(1, min(quantity_of_books_to_download, len(google_books)))
+
+
+total_books_size = 0
+def download_books():
+    global quantity_of_books_to_download, total_books_size
+    get_quantity_of_books_to_download()
+    books_to_download = google_books[:quantity_of_books_to_download]
+
+    for book in books_to_download:
+        print(f"Getting size for book \"{book['link_title']}\"...")
+        url = book["link_url"]
+        try:
+            site = urllib.request.urlopen(url)
+        except:
+            print(f"Wasn't able to get book \"{book['link_title']}\"")
+            books_to_download.remove(book)
+        try:
+            total_books_size += site.length
+        except TypeError:
+            print(f"Wasn't able to get size for book \"{book['link_title']}\"")
+    total_books_size = total_books_size / 1000000
+
+    continue_downloading = check_confirmation(input(f"You're about to download about {round(total_books_size, 2)} mb of books, "
+                                                    f"do you want to continue? (y/n) "))
+    if continue_downloading:
+        os.mkdir(f"{search_term}/Books")
+        for book in books_to_download:
+            try:
+                print(f"Downloading book \"{book['link_title']}\"...")
+                url = book["link_url"]
+                r = requests.get(url)
+                identifier = randrange(0, 999999999)
+                open(f"{search_term}/Books/{book['link_title']}_{identifier}.pdf", "wb").write(r.content)
+            except:
+                print(f"Wasn't able to download \"{book['link_title']}\"")
+    else:
+        download_books()
+
+
+if download_books_confirmation:
+    download_books()
+
 if youtube_confirm:
-    write_youtube_thumbnails = check_confirmation(input("Do you want to include Youtube thumbnails? (y/n) "))
+    write_youtube_thumbnails = check_confirmation(input("Do you want to include Youtube thumbnails in the file? (y/n) "))
 
 def write_file():
     file_name = f"{search_term}/Information about {search_term}.html"
@@ -247,6 +396,12 @@ def write_file():
             for post in google_posts:
                 f.write(f"<a href='{post['link_url']}' target='_blank'>{post['link_title']} - {post['link_display_url']}</a><br >")
                 f.write(f"{post['link_snippet']}<br ><br >")
+
+        if book_search_confirmation:
+            f.write(f"<h2>Books</h2>")
+            for book in google_books:
+                f.write(f"<a href='{book['link_url']}' target='_blank'>{book['link_title']} - {book['link_display_url']}</a><br >")
+                f.write(f"{book['link_snippet']}<br ><br >")
 
 
 write_file()
@@ -284,7 +439,10 @@ def download_youtube():
     global total_size
     get_video_quantity()
     get_video_quality()
-    videos_to_download = videos_links[:video_quantity]
+    if video_quantity is 1:
+        videos_to_download = [videos_links[0]]
+    else:
+        videos_to_download = videos_links[:video_quantity]
 
     print("Getting the total size...")
     for i, video in enumerate(videos_to_download):
@@ -304,28 +462,33 @@ def download_youtube():
             pass
         else:
             total_size += file_size
-    proceed = check_confirmation(input(f"\nYou're about to download {round(total_size)} mb in videos,"
+    proceed = check_confirmation(input(f"\nYou're about to download about {round(total_size)} mb in videos,"
                                        f" do you want to proceed? (y/n) "))
 
     if not proceed:
         total_size = 0
         download_youtube()
 
+    os.mkdir(f"{search_term}/Videos")
     for video in videos_to_download:
-        yt = YouTube(video)
-        print(f"\nGetting data from \"{yt.title}\"")
-        streams_list = yt.streams.filter(progressive=True).order_by("resolution").desc()
-        if video_quality is 0:
-            my_stream = streams_list[0]
-        elif video_quality is 1:
-            index = len(streams_list) // 2
-            my_stream = streams_list[index]
-        else:
-            my_stream = streams_list[-1]
-        file_size = my_stream.filesize / 1000000
-        print(f"\tDownloading {round(file_size)} mb...")
-        identifier = randrange(0, 999999999)
-        my_stream.download(output_path=f"{search_term}/", filename=f"{yt.title}_{identifier}")
+        try:
+            yt = YouTube(video)
+            print(f"\nGetting data from \"{yt.title}\"")
+            streams_list = yt.streams.filter(progressive=True).order_by("resolution").desc()
+            if video_quality is 0:
+                my_stream = streams_list[0]
+            elif video_quality is 1:
+                index = len(streams_list) // 2
+                my_stream = streams_list[index]
+            else:
+                my_stream = streams_list[-1]
+            file_size = my_stream.filesize / 1000000
+            print(f"\tDownloading {round(file_size)} mb...")
+            identifier = randrange(0, 999999999)
+            my_stream.download(output_path=f"{search_term}/Videos/", filename=f"{yt.title}_{identifier}")
+        except:
+            print(f"Wasn't able to download {video}")
+            pass
 
 
 if youtube_confirm and confirm_youtube_download:

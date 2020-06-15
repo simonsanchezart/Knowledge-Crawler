@@ -6,7 +6,7 @@ Wikipedia - DONE
 Youtube - DONE
     save and load api key - DONE
 Google - DONE
-PDF's, epubs, etc...
+PDF's, epubs, etc... - DONE
 Archive.org
 GET ALL CONFIRMATIONS ONLY AT BEGINNING
 Create index for html file
