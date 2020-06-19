@@ -1,5 +1,6 @@
 import requests
 import json
+import re
 import os
 import pdfkit
 import urllib
@@ -19,8 +20,12 @@ def is_strict():
     return check_confirmation(strict_confirmation)
 
 
+def format_string(input_text):
+    regex = re.compile('[^a-zA-Z0-9" "]')
+    return regex.sub("", input_text)
 
 search_term = input("What do you wanna search for? ")
+search_term = format_string(search_term)
 
 if not os.path.exists(f"{search_term}"):
     os.mkdir(f"{search_term}")
@@ -69,6 +74,11 @@ def search_wikipedia():
 
 wiki_confirm = check_confirmation(input("Do you want to search the Wikipedia? (y/n) "))
 def download_wikipedia():
+    # TODO: implement wkhtmltopdf confirmation
+    print(f"To convert Wikipedia articles you need to to download wkhtmltopdf: "
+          f"https://wkhtmltopdf.org/downloads.html"
+          f""
+          f"Once you've downloaded it, you will be asked to")
     config = pdfkit.configuration(wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe")
     options = {'quiet': ''}
 
@@ -85,17 +95,21 @@ def download_wikipedia():
     os.mkdir(f"{search_term}/Wikipedia")
     for article in articles_to_download:
         print(f"Downloading {article['name']} as .pdf")
-        pdfkit.from_url(article["link"], f"{search_term}/Wikipedia/{article['name']}.pdf", configuration=config, options=options)
+        formatted_article_name = format_string(article['name'])
+        pdfkit.from_url(article["link"], f"{search_term}/Wikipedia/{formatted_article_name}.pdf", configuration=config, options=options)
 
 
 if wiki_confirm:
     search_wikipedia()
-    confirm_wiki_download = check_confirmation(input("Do you want to convert Wikipedia articles to pdf? (y/n) "))
-    if confirm_wiki_download:
+    if wiki_articles:
+        confirm_wiki_download = check_confirmation(input("Do you want to convert Wikipedia articles to pdf? (y/n) "))
+        if confirm_wiki_download:
 
-        print("\nWARNING: Downloading articles from Wikipedia can be slow, "
-              "if possible, keep the number of articles to download to a minimum.")
-        download_wikipedia()
+            print("\nWARNING: Downloading articles from Wikipedia can be slow, "
+                  "if possible, keep the number of articles to download to a minimum.")
+            download_wikipedia()
+    else:
+        print(f"No Wikipedia articles were found")
 
 
 videos_links, youtube_videos, youtube_thumbnails = [], [], []
@@ -239,12 +253,9 @@ def book_search(api_key):
     if start > 100:
         start = 100
 
-    url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx=008211583063684876305:ztaertslmc4&start={start}&fileType=pdf&q={search_term}"
+    url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx=008211583063684876305:ztaertslmc4&start={start}&fileType=pdf&q={search_term}%20book"
 
     r = requests.get(url)
-    content = r.json()
-    with open("books.json", "w") as f:
-        json.dump(content, f, indent=4)
     if incrementer < 1:
         print(f"Google connection: {r.status_code}")
     if r.status_code is not 200 and incrementer < 1:
@@ -315,7 +326,8 @@ if book_search_confirmation:
                   "https://developers.google.com/custom-search/v1/overview "
                   "Youtube and Google services won't be used.")
 
-download_books_confirmation = check_confirmation(input("Do you want to download the books? (y/n) "))
+if book_search_confirmation:
+    download_books_confirmation = check_confirmation(input("Do you want to download the books? (y/n) "))
 
 quantity_of_books_to_download = 0
 def get_quantity_of_books_to_download():
@@ -359,24 +371,37 @@ def download_books():
                 url = book["link_url"]
                 r = requests.get(url)
                 identifier = randrange(0, 999999999)
-                open(f"{search_term}/Books/{book['link_title']}_{identifier}.pdf", "wb").write(r.content)
+                formatted_book_title = format_string(book['link_title'])
+                open(f"{search_term}/Books/{formatted_book_title}_{identifier}.pdf", "wb").write(r.content)
             except:
                 print(f"Wasn't able to download \"{book['link_title']}\"")
     else:
         download_books()
 
 
-if download_books_confirmation:
-    download_books()
+if book_search_confirmation:
+    if download_books_confirmation:
+        download_books()
 
 if youtube_confirm:
     write_youtube_thumbnails = check_confirmation(input("Do you want to include Youtube thumbnails in the file? (y/n) "))
 
 def write_file():
     file_name = f"{search_term}/Information about {search_term}.html"
+
     with open(file_name, "w", encoding='utf-8-sig', ) as f:
-        if wiki_confirm:
-            f.write(f"<h2>Wikipedia</h2>")
+        f.write(f"<h1 id='top'>Sections:</h1>")
+        if wiki_articles:
+            f.write(f"<a href='#wikipedia'>Wikipedia</a><br >")
+        if youtube_videos:
+            f.write(f"<a href='#youtube'>Youtube</a><br >")
+        if google_posts:
+            f.write(f"<a href='#google'>Google</a><br>")
+        if google_books:
+            f.write(f"<a href='#books'>Books</a><br>")
+
+        if wiki_articles:
+            f.write(f"<h2 id='wikipedia'>Wikipedia - <a href='#top'>Goto top</a><br></h2>")
             for article in enumerate(wiki_articles):
                 f.write(f"{article[1]}")
                 f.write(f"<ul>")
@@ -384,21 +409,23 @@ def write_file():
                     f.write(f"<li>{link}</li>")
                 f.write(f"</ul><br >")
 
-        if youtube_confirm:
-            f.write(f"<h2>Youtube</h2>")
+        if youtube_videos:
+            f.write(f"<h2 id='youtube'>Youtube - <a href='#top'>Goto top</a><br></h2>")
             for video in range(len(youtube_videos)):
                 f.write(f"{youtube_videos[video]}<br >")
                 if write_youtube_thumbnails:
                     f.write(f"{youtube_thumbnails[video]}<br >")
 
         if google_confirm:
-            f.write(f"<h2>Google</h2>")
+            f.write(f"<h2 id='google'>Google - <a href='#top'>Goto top</a><br></h2>")
             for post in google_posts:
                 f.write(f"<a href='{post['link_url']}' target='_blank'>{post['link_title']} - {post['link_display_url']}</a><br >")
                 f.write(f"{post['link_snippet']}<br ><br >")
 
         if book_search_confirmation:
-            f.write(f"<h2>Books</h2>")
+            f.write(f"<h2 id='books'>Books - <a href='#top'>Goto top</a><br></h2>")
+            f.write(f"For more accurate results, follow this link: "
+                    f"<a href='https://www.google.com/search?q={search_term} filetype:pdf' target='_blank'><b>Results</b></a><br ><br >")
             for book in google_books:
                 f.write(f"<a href='{book['link_url']}' target='_blank'>{book['link_title']} - {book['link_display_url']}</a><br >")
                 f.write(f"{book['link_snippet']}<br ><br >")
@@ -422,15 +449,16 @@ def get_video_quantity():
     else:
         video_quantity = max(1, min(video_quantity, 50))
 
+
 video_quality = 0
 def get_video_quality():
     global video_quality
     video_quality = int(input("Choose a quality to download the video (0-2):\n"
-                              "0- Highest\n"
-                              "1- Mid\n"
-                              "2- Lowest\n\n"))
-    if 0 > video_quality > 2:
-        print("Video quality should be a number between 0 and 2 (inclusive)")
+                              "0- 1080p\n"
+                              "1- 720p\n"
+                              "2- 480p\n\n"))
+    if 0 > video_quality > 1:
+        print("Video quality should be a number between 0 and 1 (inclusive)")
         get_video_quality()
 
 
@@ -445,18 +473,40 @@ def download_youtube():
         videos_to_download = videos_links[:video_quantity]
 
     print("Getting the total size...")
-    for i, video in enumerate(videos_to_download):
+    for i_index, video in enumerate(videos_to_download):
         try:
-            print(f"Getting size from video {i+1} of {len(videos_to_download)}")
+            print(f"Getting size from video {i_index + 1} of {len(videos_to_download)}")
             yt = YouTube(video)
             streams_list = yt.streams.filter(progressive=True).order_by("resolution").desc()
             if video_quality is 0:
-                my_stream = streams_list[0]
+                my_stream = streams_list.filter(resolution="1080p").first()
+                if my_stream is None:
+                    print("There's no available 1080p resolution for this video")
+                    my_stream = streams_list.filter(resolution="720p").first()
+                    if my_stream is None:
+                        my_stream = streams_list.filter(resolution="480p").first()
+                        if my_stream is None:
+                            my_stream = streams_list.last()
+                            print(f"Lowest resolution was chosen")
+                        else:
+                            print(f"480p was chosen by default")
+                    else:
+                        print(f"720p was chosen by default")
             elif video_quality is 1:
-                index = len(streams_list) // 2
-                my_stream = streams_list[index]
+                my_stream = streams_list.filter(resolution="720p").first()
+                if my_stream is None:
+                    print("There's no available 720p resolution for this video")
+                    my_stream = streams_list.filter(resolution="480p").first()
+                    if my_stream is None:
+                        my_stream = streams_list.last()
+                        print(f"Lowest resolution was chosen")
+                    print(f"480p was chosen by default")
             else:
-                my_stream = streams_list[-1]
+                my_stream = streams_list.filter(resolution="480p").first()
+                if my_stream is None:
+                    print("There's no available 480p resolution for this video")
+                    my_stream = streams_list.last()
+                    print(f"Lowest resolution was chosen")
             file_size = my_stream.filesize / 1000000
         except:
             pass
@@ -469,26 +519,53 @@ def download_youtube():
         total_size = 0
         download_youtube()
 
-    os.mkdir(f"{search_term}/Videos")
-    for video in videos_to_download:
+    if not os.path.isdir(f"{search_term}/Videos"):
+        os.mkdir(f"{search_term}/Videos")
+
+    for video in set(videos_to_download):
         try:
             yt = YouTube(video)
-            print(f"\nGetting data from \"{yt.title}\"")
+            original_title = format_string(yt.title)
+            print(f"\nGetting data from \"{original_title}\"")
             streams_list = yt.streams.filter(progressive=True).order_by("resolution").desc()
             if video_quality is 0:
-                my_stream = streams_list[0]
+                my_stream = streams_list.filter(resolution="1080p").first()
+                if my_stream is None:
+                    print("There's no available 1080p resolution for this video")
+                    my_stream = streams_list.filter(resolution="720p").first()
+                    if my_stream is None:
+                        my_stream = streams_list.filter(resolution="480p").first()
+                        if my_stream is None:
+                            my_stream = streams_list.last()
+                            print(f"Lowest resolution was chosen")
+                        else:
+                            print(f"480p was chosen by default")
+                    else:
+                        print(f"720p was chosen by default")
             elif video_quality is 1:
-                index = len(streams_list) // 2
-                my_stream = streams_list[index]
+                my_stream = streams_list.filter(resolution="720p").first()
+                if my_stream is None:
+                    print("There's no available 720p resolution for this video")
+                    my_stream = streams_list.filter(resolution="480p").first()
+                    if my_stream is None:
+                        my_stream = streams_list.last()
+                        print(f"Lowest resolution was chosen")
+                    print(f"480p was chosen by default")
             else:
-                my_stream = streams_list[-1]
+                my_stream = streams_list.filter(resolution="480p").first()
+                if my_stream is None:
+                    print("There's no available 480p resolution for this video")
+                    my_stream = streams_list.last()
+                    print(f"Lowest resolution was chosen")
             file_size = my_stream.filesize / 1000000
             print(f"\tDownloading {round(file_size)} mb...")
             identifier = randrange(0, 999999999)
-            my_stream.download(output_path=f"{search_term}/Videos/", filename=f"{yt.title}_{identifier}")
+            video_title = f"{original_title}_{identifier}"
+            with open(f"{search_term}/Videos/{video_title}_description.txt", "w") as f:
+                f.write(yt.description)
+            my_stream.download(output_path=f"{search_term}/Videos/", filename=video_title)
         except:
             print(f"Wasn't able to download {video}")
-            pass
 
 
 if youtube_confirm and confirm_youtube_download:
