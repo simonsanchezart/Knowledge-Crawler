@@ -1,9 +1,8 @@
-import requests
-import json
-import re
-import os
-import pdfkit
-import urllib
+from requests import get
+from re import compile
+from os import path, mkdir
+from pdfkit import configuration, from_url
+from urllib import request
 from pytube import YouTube
 from random import randrange
 
@@ -15,31 +14,24 @@ def check_confirmation(input_text):
         return False
 
 
-def is_strict():
-    strict_confirmation = input("Do you want to perform a strict search? (y/n) ")
-    return check_confirmation(strict_confirmation)
-
-
 def format_string(input_text):
-    regex = re.compile('[^a-zA-Z0-9" "]')
+    regex = compile('[^a-zA-Z0-9" "]')
     return regex.sub("", input_text)
+
 
 search_term = input("What do you wanna search for? ")
 search_term = format_string(search_term)
 
-if not os.path.exists(f"{search_term}"):
-    os.mkdir(f"{search_term}")
+if not path.exists(f"{search_term}"):
+    mkdir(f"{search_term}")
 
 
 raw_articles, wiki_articles, wiki_in_links = [], [], []
 def search_wikipedia():
     global search_term
 
-    if is_strict():
-        url = f"https://en.wikipedia.org/w/api.php?action=opensearch&limit=500&search=\"{search_term}\""
-    else:
-        url = f"https://en.wikipedia.org/w/api.php?action=opensearch&limit=500&search={search_term}"
-    r = requests.get(url)
+    url = f"https://en.wikipedia.org/w/api.php?action=opensearch&limit=500&search={search_term}"
+    r = get(url)
     print(f"Wikipedia connection: {r.status_code}")
     if r.status_code != 200:
         print(f"Not able to use connect to Wikipedia {r.status_code}\n")
@@ -53,7 +45,7 @@ def search_wikipedia():
 
             url_links = f"https://en.wikipedia.org/w/api.php?action=query&prop=links&titles={name}&format=json"
             print(f"Getting links for wikipedia article: {name}")
-            re = requests.get(url_links)
+            re = get(url_links)
             contents_links = re.json()
             article_id = list(contents_links["query"]["pages"])[0]
             try:
@@ -74,12 +66,17 @@ def search_wikipedia():
 
 wiki_confirm = check_confirmation(input("Do you want to search the Wikipedia? (y/n) "))
 def download_wikipedia():
-    # TODO: implement wkhtmltopdf confirmation
-    print(f"To convert Wikipedia articles you need to to download wkhtmltopdf: "
-          f"https://wkhtmltopdf.org/downloads.html"
-          f""
-          f"Once you've downloaded it, you will be asked to")
-    config = pdfkit.configuration(wkhtmltopdf=r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe")
+    if path.isfile("wkhtmltopdf_path.txt"):
+        wkhtml_folder = open("wkhtmltopdf_path.txt", "r").read()
+    else:
+        print(f"To convert Wikipedia articles you need to to download wkhtmltopdf: "
+              f"https://wkhtmltopdf.org/downloads.html"
+              f"\n"
+              f"Once you've downloaded it, you will be asked to indicate the folder where wkhtmltopdf.exe is in.\n")
+
+        wkhtml_folder = input("Location of wkhtmltopdf.exe: ")
+
+    config = configuration(wkhtmltopdf=rf"{wkhtml_folder}\\wkhtmltopdf.exe")
     options = {'quiet': ''}
 
     try:
@@ -92,23 +89,24 @@ def download_wikipedia():
             download_wikipedia()
 
     articles_to_download = raw_articles[:articles_quantity]
-    os.mkdir(f"{search_term}/Wikipedia")
-    for article in articles_to_download:
-        print(f"Downloading {article['name']} as .pdf")
-        formatted_article_name = format_string(article['name'])
-        pdfkit.from_url(article["link"], f"{search_term}/Wikipedia/{formatted_article_name}.pdf", configuration=config, options=options)
+    if not path.exists(f"{search_term}/Wikipedia"):
+        mkdir(f"{search_term}/Wikipedia")
+    try:
+        for article in articles_to_download:
+            print(f"Downloading {article['name']} as .pdf")
+            formatted_article_name = format_string(article['name'])
+            from_url(article["link"], f"{search_term}/Wikipedia/{formatted_article_name}.pdf",
+                     configuration=config, options=options)
+    except:
+        print(f"Wasn't able to download Wikipedia articles. Check the path of wkhtmltopdf.exe.")
+    else:
+        with open("wkhtmltopdf_path.txt", "w") as f:
+            f.write(wkhtml_folder)
 
 
 if wiki_confirm:
     search_wikipedia()
-    if wiki_articles:
-        confirm_wiki_download = check_confirmation(input("Do you want to convert Wikipedia articles to pdf? (y/n) "))
-        if confirm_wiki_download:
-
-            print("\nWARNING: Downloading articles from Wikipedia can be slow, "
-                  "if possible, keep the number of articles to download to a minimum.")
-            download_wikipedia()
-    else:
+    if not wiki_articles:
         print(f"No Wikipedia articles were found")
 
 
@@ -116,12 +114,9 @@ videos_links, youtube_videos, youtube_thumbnails = [], [], []
 def youtube_search(api_key):
     global search_term
 
-    if is_strict():
-        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q=\"{search_term}\"&relevanceLanguage=en&type=video&key={api_key}"
-    else:
-        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q={search_term}&relevanceLanguage=en&type=video&key={api_key}"
+    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q={search_term}&relevanceLanguage=en&type=video&key={api_key}"
 
-    r = requests.get(url)
+    r = get(url)
 
     print(f"Youtube connection: {r.status_code}")
     if r.status_code != 200:
@@ -147,7 +142,7 @@ youtube_confirm = check_confirmation(input("Do you want to search for Youtube? (
 if youtube_confirm:
     filename = "google_api.txt"
     use_prev = False
-    if os.path.isfile(filename):
+    if path.isfile(filename):
         with open(filename, "r") as f:
             prev_api = f.read()
         use_prev = check_confirmation(input(f"\nA previous API key ({prev_api}) "
@@ -175,7 +170,7 @@ def google_search(api_key):
 
     url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx=008211583063684876305:ztaertslmc4&start={start}&q={search_term}"
 
-    r = requests.get(url)
+    r = get(url)
     if incrementer < 1:
         print(f"Google connection: {r.status_code}")
     if r.status_code is not 200 and incrementer < 1:
@@ -216,7 +211,7 @@ def get_pages_to_search():
 if google_confirm:
     filename = "google_api.txt"
     use_prev = False
-    if os.path.isfile(filename):
+    if path.isfile(filename):
         with open(filename, "r") as f:
             prev_api = f.read()
         use_prev = check_confirmation(input(f"\nA previous API key ({prev_api}) "
@@ -255,7 +250,7 @@ def book_search(api_key):
 
     url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx=008211583063684876305:ztaertslmc4&start={start}&fileType=pdf&q={search_term}%20book"
 
-    r = requests.get(url)
+    r = get(url)
     if incrementer < 1:
         print(f"Google connection: {r.status_code}")
     if r.status_code is not 200 and incrementer < 1:
@@ -297,7 +292,7 @@ def get_books_to_search():
 if book_search_confirmation:
     filename = "google_api.txt"
     use_prev = False
-    if os.path.isfile(filename):
+    if path.isfile(filename):
         with open(filename, "r") as f:
             prev_api = f.read()
         use_prev = check_confirmation(input(f"\nA previous API key ({prev_api}) "
@@ -326,8 +321,6 @@ if book_search_confirmation:
                   "https://developers.google.com/custom-search/v1/overview "
                   "Youtube and Google services won't be used.")
 
-if book_search_confirmation:
-    download_books_confirmation = check_confirmation(input("Do you want to download the books? (y/n) "))
 
 quantity_of_books_to_download = 0
 def get_quantity_of_books_to_download():
@@ -351,7 +344,7 @@ def download_books():
         print(f"Getting size for book \"{book['link_title']}\"...")
         url = book["link_url"]
         try:
-            site = urllib.request.urlopen(url)
+            site = request.urlopen(url)
         except:
             print(f"Wasn't able to get book \"{book['link_title']}\"")
             books_to_download.remove(book)
@@ -364,12 +357,15 @@ def download_books():
     continue_downloading = check_confirmation(input(f"You're about to download about {round(total_books_size, 2)} mb of books, "
                                                     f"do you want to continue? (y/n) "))
     if continue_downloading:
-        os.mkdir(f"{search_term}/Books")
+        if not path.exists(f"{search_term}/Books"):
+            mkdir(f"{search_term}/Books")
         for book in books_to_download:
             try:
-                print(f"Downloading book \"{book['link_title']}\"...")
+
                 url = book["link_url"]
-                r = requests.get(url)
+                size = request.urlopen(url).length / 1000000
+                print(f"Downloading book \"{book['link_title']}\" ({round(size, 2)} mb)...")
+                r = get(url)
                 identifier = randrange(0, 999999999)
                 formatted_book_title = format_string(book['link_title'])
                 open(f"{search_term}/Books/{formatted_book_title}_{identifier}.pdf", "wb").write(r.content)
@@ -379,11 +375,7 @@ def download_books():
         download_books()
 
 
-if book_search_confirmation:
-    if download_books_confirmation:
-        download_books()
-
-if youtube_confirm:
+if youtube_videos:
     write_youtube_thumbnails = check_confirmation(input("Do you want to include Youtube thumbnails in the file? (y/n) "))
 
 def write_file():
@@ -425,7 +417,7 @@ def write_file():
         if book_search_confirmation:
             f.write(f"<h2 id='books'>Books - <a href='#top'>Goto top</a><br></h2>")
             f.write(f"For more accurate results, follow this link: "
-                    f"<a href='https://www.google.com/search?q={search_term} filetype:pdf' target='_blank'><b>Results</b></a><br ><br >")
+                    f"<a href='https://www.google.com/search?q={search_term} book filetype:pdf' target='_blank'><b>Results</b></a><br ><br >")
             for book in google_books:
                 f.write(f"<a href='{book['link_url']}' target='_blank'>{book['link_title']} - {book['link_display_url']}</a><br >")
                 f.write(f"{book['link_snippet']}<br ><br >")
@@ -433,7 +425,17 @@ def write_file():
 
 write_file()
 
-if youtube_confirm:
+if wiki_articles:
+    confirm_wiki_download = check_confirmation(input("Do you want to convert Wikipedia articles to pdf? (y/n) "))
+    if confirm_wiki_download:
+        download_wikipedia()
+
+if google_books:
+    download_books_confirmation = check_confirmation(input("Do you want to download the books? (y/n) "))
+    if download_books_confirmation:
+        download_books()
+
+if youtube_videos:
     confirm_youtube_download = check_confirmation(input("Do you want to download the youtube videos? (y/n) "))
 
 video_quantity = 0
@@ -519,8 +521,8 @@ def download_youtube():
         total_size = 0
         download_youtube()
 
-    if not os.path.isdir(f"{search_term}/Videos"):
-        os.mkdir(f"{search_term}/Videos")
+    if not path.exists(f"{search_term}/Videos"):
+        mkdir(f"{search_term}/Videos")
 
     for video in set(videos_to_download):
         try:
